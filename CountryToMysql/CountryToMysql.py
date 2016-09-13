@@ -10,11 +10,18 @@ import json
 
 
 pattern = re.compile(r'\t+|\-{2}|\n')
+clearPattern = re.compile(r'\s+$')
 numPattern = re.compile(r'\d+')
 countryID = 0
 provinceID = 0
 country = ""
 province = ""
+
+"""
+待完善：
+1、需要一个进度条来显示进度
+2、运行时如果能选择看或者不看打印的日志就更好了
+"""
 
 conn = MySQLdb.connect(host='120.24.42.115', user='root', passwd='secsmarts', db='secsmarts', port=3306, charset='utf8')
 # this should set charset as utf8
@@ -63,8 +70,18 @@ def insertOrUpdateMysql(firstName, englishName, chineseName, fieldType):
             elif fieldType == 2:
                 print "正在插入地级市ing..."
                 lng, lat, englishName = googleLngLatService(country + province + chineseName, englishName)
+                if(lng == 88888 and lat == 88888):
+                    print "================================"
+                    print "sorry，google也找不到，肿么办呀主人"
+                    print "================================"
+                    return
+                print englishName
+                print type(englishName)
+
+                if isinstance(englishName, unicode):
+                    englishName = englishName.encode("utf-8")
+
                 print "google查询[{2}]的经纬度为 --> ({0}, {1})".format(lng, lat, englishName)
-                englishName = str(englishName)
 
                 sql = "insert into location(initial, name, text, latitude, longitude, type, parent_id) values('" + firstName + "', '" + englishName + "', '" + chineseName + "', " + `lat` + ", " + `lng` + ", 2, " + `provinceID` + ")"
 
@@ -84,6 +101,7 @@ def readFile(path):
         for line in f.readlines():
             print "\n\n"
             typeIndex = 0
+            line = clearPattern.sub("", line)
             while(line[typeIndex] == '\t'):
                 typeIndex += 1
             global pattern
@@ -128,12 +146,18 @@ def googleLngLatService(city, englishName):
 
     if r.status_code == 200:
         print "google map service url => ", r.url
-        res = json.loads(r.content)["results"][0]
-        location = res["geometry"]["location"]
-        if englishName == "":
-            englishName = res["address_components"][0]["long_name"]
-        return location["lng"], location["lat"], englishName
+        res = json.loads(r.content)["results"]
+        if len(res) > 0:
+            """ google查的到的话 """
 
+            location = res[0]["geometry"]["location"]
+            if englishName == "":
+                englishName = res[0]["address_components"][0]["long_name"]
+            return location["lng"], location["lat"], englishName
+        else:
+            return 88888, 88888, ""
+    else:
+        return 88888, 88888, ""
 
 def getFirstName(name):
     return lazy_pinyin(name.decode(chardet.detect(name)['encoding']))[0][0].upper()
